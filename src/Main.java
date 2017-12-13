@@ -1,7 +1,11 @@
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
@@ -13,7 +17,9 @@ import java.util.Scanner;
 
 public class Main {
 	
-	static double LEARNING_RATE = 0.0001;
+	static String file_extention = ".AI";
+	
+	static double LEARNING_RATE = 0.00001;
 	static int MIN_DAYS = 30; // min 30 days of inputs before giving a prediction
 	
 	static String fileDir = "C:\\Users\\stee2\\Desktop\\Self programmed A.I\\Bitcoin predictor\\";
@@ -30,6 +36,8 @@ public class Main {
     static public NeuralNetwork testRNN = null;
 	static String helpMenu = "";
     
+	//if this is true, there is a network being loaded from a file, so everything should get reset
+	static boolean loadNetwork = false;
     
     //for every coin keep 10 days to test 
     //(don't train the last 10 days do it can be tested if the  network can predict it successfully without it seeing it before)
@@ -57,7 +65,7 @@ public class Main {
 		
 
 		// input, hidden layers and output of the network
-		int[] layers = { 1,  10, 40, 80, 180, 250, 180, 80, 40, 10,  1 };
+		int[] layers = { 1,  10, 40, 100, 200, 100, 40, 10,  1 };
 		
 		initializeNetwork(layers);
 		
@@ -75,6 +83,13 @@ public class Main {
 	       };
 	       one.start();
 
+	       //if the function ever ends or returns, start it again
+	       while(true)
+	    	   trainNetwork();
+	}
+	
+	static void trainNetwork(){
+		println("Begin training network.... (there will be updates about how the networking is doing)");
 		for(int X = 0; X < 10000; X++){
 			double totalError = 0;
 			int totalErrorTimes = 0;
@@ -109,6 +124,16 @@ public class Main {
 						error += thisError;
 						errorTimes++;
 					}
+					
+					//Reset everything because a net networking is being loaded
+					if(loadNetwork){
+						NN.resetNetwork();
+						LEARNING_RATE = NN.LEARNING_RATE;
+						keepDataForTest = NN.keepDataForTest;
+						MIN_DAYS = NN.MIN_DAYS;
+						loadNetwork = false;
+						return;
+					}
 
 					
 				}// </day>
@@ -117,9 +142,11 @@ public class Main {
 				totalErrorTimes++;
 				
 			}// </coin>
-			LEARNING_RATE *= 1 + LEARNING_RATE;
+			
+			//decrees the learning rate slowly
+			LEARNING_RATE /= 1 + LEARNING_RATE * 100;
 			testRNN = NN.copy();
-			println("-----FINISHED "+X+" itteration. average itteration error: "+toRead(totalError/totalErrorTimes)+" (LEARNING_RATE) "+normalNotation(LEARNING_RATE));
+			println("-----FINISHED "+X+" itteration. average itteration error: "+toReadPrecise(totalError/totalErrorTimes)+" (LEARNING_RATE) "+normalNotation(LEARNING_RATE));
 		}// </loop>
 	}
 	
@@ -134,6 +161,9 @@ public class Main {
          	helpMenu += "\tmin_days, current: "+MIN_DAYS+" (the number of days it needs bevore giving a prediction)\n";
          	helpMenu += "\tkeepDataForTest, current: "+keepDataForTest+" (dont train the last X days to the network for testing)\n";
          helpMenu += "help (this menu)\n";
+         helpMenu += "save [fullFilePath] (save the neural network to a file WITHOUT extention)\n";
+         helpMenu += "load [fullFilePath] (load the neural network from a file WITHOUT extention)\n";
+         
          
          print(helpMenu);
          
@@ -153,12 +183,13 @@ public class Main {
 	 static void passCommand(String command) throws Exception{
 		 boolean didEnterCommand = false;
 		 boolean test = false;
+		 String origionalCommand = command;
 		 String coin = command;
 		 command = command.toLowerCase();
 		 
 		 if(command.indexOf("test ") == 0){
 			 coin = coin.substring("test ".length());
-			 println("COI NGJNKDSGN "+coin);
+			 println("\nCOIN: "+coin);
 			 test = true;
 		 }
 		 
@@ -172,15 +203,63 @@ public class Main {
 				 LEARNING_RATE = new_learning_rate;
 			 }
 			 
-			 if(variableType.indexOf("keepDataForTest ") == 0){
-				 String value = variableType.replace("keepDataForTest ", "");
+			 if(variableType.indexOf("keepdatafortest ") == 0){
+				 String value = variableType.replace("keepdatafortest ", "");
 				 int new_min_days = Integer.parseInt(value);
 				 println("New days to keep data: "+new_min_days+" Old: "+MIN_DAYS);
 				 MIN_DAYS = new_min_days;
 			 }
+			 println(variableType);
 			 
 			 
 			 didEnterCommand = true;
+		 }
+		 
+		 if(origionalCommand.indexOf("save ") == 0){
+			 didEnterCommand = true;
+			 try{
+				String filePath = origionalCommand.replace("save ", "");
+				NeuralNetwork saveNN = NN.copy();
+				saveNN.resetNetwork();
+				
+				saveNN.LEARNING_RATE = LEARNING_RATE;
+				saveNN.keepDataForTest = keepDataForTest;
+				saveNN.MIN_DAYS = MIN_DAYS;
+				double rand = Math.random();
+				println("=-=-=-=-=--=-=-=-=- (save)RANDOM: "+rand);
+				saveNN.layers[0].unique = rand;
+				
+				FileOutputStream fos = new FileOutputStream(filePath + file_extention);
+				ObjectOutputStream oos = new ObjectOutputStream(fos);
+				oos.writeObject(saveNN);
+				oos.close();
+				
+				println("Sucessfully saved the network to "+filePath);
+			 }catch(Exception e){
+				 println("ERROR could not write to file EXCEPTION:");
+				 e.printStackTrace();
+			 }
+		 }
+		 
+		 if(origionalCommand.indexOf("load ") == 0){
+			 didEnterCommand = true;
+			 try{
+				String filePath = origionalCommand.replace("load ", "");
+				
+				FileInputStream fis = new FileInputStream(filePath + file_extention);
+				ObjectInputStream ois = new ObjectInputStream(fis);
+				NN = (NeuralNetwork) ois.readObject();
+				NN.resetNetwork();
+				println("=-=-=-=-=--=-=-=-=- (LOAD)RANDOM: "+NN.layers[0].unique);
+				testRNN = NN.copy();
+				ois.close();
+				 
+				loadNetwork = true;
+				println("Sucessfully loaded the network from "+filePath);
+			 }catch(Exception e){
+				 println("ERROR could not load to file EXCEPTION:");
+				 e.printStackTrace();
+			 }
 		 }
 		 
 		 if(command.equals("help")){
@@ -228,12 +307,13 @@ public class Main {
 	 }
 	 
 	 static String normalNotation(Double number){
-		NumberFormat formatter = new DecimalFormat("###.#####");
+		NumberFormat formatter = new DecimalFormat("###.###########");
 		
 		return formatter.format(number);
 	 }
 	
 	static double toRead(double x){return Math.round(x * 1000) / 1000.0;}
+	static double toReadPrecise(double x){return Math.round(x * 100000000) / 100000000.0;}
 	
 	static double percent(double oldValue, double newValue){
 		if(oldValue == 0)

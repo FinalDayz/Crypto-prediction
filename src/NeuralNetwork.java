@@ -1,10 +1,16 @@
+import java.io.Serializable;
 
-public class NeuralNetwork
+public class NeuralNetwork implements Serializable
 {
 
-    int[] layer; //layer information
+
+	private static final long serialVersionUID = 1L;
+	int[] layer; //layer information
     Layer[] layers; //layers in the network
 
+	double LEARNING_RATE;
+	int MIN_DAYS;
+    int keepDataForTest;
     /// <summary>
     /// Constructor setting up layers
     /// </summary>

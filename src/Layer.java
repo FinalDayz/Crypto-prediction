@@ -1,11 +1,14 @@
+import java.io.Serializable;
 import java.util.Arrays;
-
+import java.io.Serializable;
 /// <summary>
 /// Each individual layer in the ML{
 /// </summary>
-public class Layer
+public class Layer implements Serializable
 {
-
+	double unique;
+	private static final long serialVersionUID = 1L;
+	
 	int numberOfInputs; //# of neurons in the previous layer
     int numberOfOuputs; //# of neurons in the current layer
 
